@@ -42,6 +42,15 @@ python server.py
 python server.py
 ```
 
+## Docker
+
+Микросервис может быть запущен с помощью сервиса Docker и Docker-compose.
+Для этого требуется Docker версии не ниже чем 18.09 и docker-compose 1.21. 
+
+```bash
+docker-compose -f docker-compose-dev.yml up --build
+```
+
 После этого перенаправить на микросервис запросы, начинающиеся с `/arhive/`. Например:
 
 ```
