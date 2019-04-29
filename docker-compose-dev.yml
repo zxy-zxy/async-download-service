@@ -8,7 +8,6 @@ services:
       - "8080:8080"
     working_dir: /app
     volumes:
-      - ./app:/app
       - ./test_photos:/photos
     env_file:
       - .env

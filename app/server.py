@@ -16,28 +16,30 @@ class DownloadService:
         self._photos_directory = photos_directory
         self._logger = logger
 
-    async def _is_photo_directory_exists(self, directory_hash):
+    def _is_photo_directory_exists(self, directory_hash):
         return os.path.exists(os.path.join(self._photos_directory, directory_hash))
 
     async def _get_archive(self, directory_hash):
         directory_hash_full_path = os.path.join(self._photos_directory, directory_hash)
 
-        archive = await asyncio.create_subprocess_exec(
+        archive_process = await asyncio.create_subprocess_exec(
             'zip',
             '-jr', '-', directory_hash_full_path,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
 
-        return archive
+        return archive_process
 
     async def archivate(self, request):
         directory_hash = request.match_info['archive_hash']
-        directory_exists = await self._is_photo_directory_exists(directory_hash)
+        directory_exists = self._is_photo_directory_exists(directory_hash)
         if not directory_exists:
-            raise web.HTTPNotFound(reason=f'Directory {directory_hash} does not exists or has been moved.')
+            raise web.HTTPNotFound(
+                reason=f'Directory {directory_hash} does not exists or has been moved.'
+            )
 
-        archive = await self._get_archive(directory_hash)
+        archive_process = await self._get_archive(directory_hash)
 
         response = web.StreamResponse()
         response.headers['Content-Disposition'] = f'attachment; filename="{directory_hash}.zip"'
@@ -48,13 +50,13 @@ class DownloadService:
                 self._logger.info('Sending archive chunk.')
                 if self._mimic_download_latency:
                     await asyncio.sleep(self._mimic_download_latency)
-                archive_chunk = await archive.stdout.readline()
+                archive_chunk = await archive_process.stdout.readline()
                 if not archive_chunk:
                     break
                 await response.write(archive_chunk)
         except asyncio.CancelledError:
             self._logger.info('Handling canceled error exception.')
-            archive.terminate()
+            archive_process.terminate()
             raise
         finally:
             self._logger.info('Force close executed.')
@@ -79,20 +81,20 @@ def create_parser():
     return parser
 
 
-if __name__ == '__main__':
+def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    MIMIC_DOWNLOAD_LATENCY = args.mimic_download_latency or float(os.environ.get('MIMIC_DOWNLOAD_LATENCY'))
-    PHOTOS_DIRECTORY = args.photos_directory or os.environ.get('PHOTOS_DIRECTORY')
+    mimic_download_latency = args.mimic_download_latency or float(os.environ.get('MIMIC_DOWNLOAD_LATENCY'))
+    photos_directory = args.photos_directory or os.environ.get('PHOTOS_DIRECTORY')
 
     logging_lvl = logging.INFO if args.enable_logging else logging.NOTSET
     logger = get_logger(__file__, logging_lvl)
 
     app = web.Application()
     download_service = DownloadService(
-        MIMIC_DOWNLOAD_LATENCY,
-        PHOTOS_DIRECTORY,
+        mimic_download_latency,
+        photos_directory,
         logger
     )
 
@@ -102,3 +104,7 @@ if __name__ == '__main__':
     ])
 
     web.run_app(app)
+
+
+if __name__ == '__main__':
+    main()
